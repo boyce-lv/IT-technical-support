@@ -1,0 +1,59 @@
+Ceph块设备的设置：
+ 	
+Configure Clients to use Ceph Storage like follows.
+                                         |
+        +--------------------+           |           +-------------------+
+        |   [dlp.yang.com]  |10.0.0.30  |   10.0.0.x|   [   Client  ]   |
+        |    Ceph-Deploy     +-----------+-----------+                   |
+        |                    |           |           |                   |
+        +--------------------+           |           +-------------------+
+            +----------------------------+----------------------------+
+            |                            |                            |
+            |10.0.0.51                   |10.0.0.52                   |10.0.0.53 
++-----------+-----------+    +-----------+-----------+    +-----------+-----------+
+|   [node01.yang.com]  |    |   [node02.yang.com]  |    |   [node03.yang.com]  |
+|     Object Storage    +----+     Object Storage    +----+     Object Storage    |
+|     Monitor Daemon    |    |                       |    |                       |
+|                       |    |                       |    |                       |
++-----------------------+    +-----------------------+    +-----------------------+
+
+ 	
+建立块设备，挂在测试
+
+[1]首先，为yang这个用户配置sodu和ssh，安装ceph、部署ceph到管理节点
+
+[yang@dlp ceph]$ ceph-deploy install client 
+[yang@dlp ceph]$ ceph-deploy admin client
+
+[2]建立一个块设备，挂载到客户端。
+
+[yang@client ~]$ sudo chmod 644 /etc/ceph/ceph.client.admin.keyring 
+建立一个10G的磁盘：
+[yang@client ~]$ rbd create disk01 --size 10G --image-feature layering
+查看：
+[yang@client ~]$ rbd ls -l 
+NAME     SIZE PARENT FMT PROT LOCK
+disk01 10240M          2
+
+映射镜像到设备
+[yang@client ~]$ sudo rbd map disk01 
+/dev/rbd0
+# show mapping
+[yang@client ~]$ rbd showmapped 
+id pool image  snap device
+0  rbd  disk01 -    /dev/rbd0
+
+# format with XFS
+[yang@client ~]$ sudo mkfs.xfs /dev/rbd0
+# mount device
+[yang@client ~]$ sudo mount /dev/rbd0 /mnt
+[yang@client ~]$ df -hT 
+Filesystem          Type      Size  Used Avail Use% Mounted on
+/dev/mapper/cl-root xfs        26G  1.8G   25G   7% /
+devtmpfs            devtmpfs  2.0G     0  2.0G   0% /dev
+tmpfs               tmpfs     2.0G     0  2.0G   0% /dev/shm
+tmpfs               tmpfs     2.0G  8.4M  2.0G   1% /run
+tmpfs               tmpfs     2.0G     0  2.0G   0% /sys/fs/cgroup
+/dev/vda1           xfs      1014M  231M  784M  23% /boot
+tmpfs               tmpfs     396M     0  396M   0% /run/user/0
+/dev/rbd0           xfs        10G   33M   10G   1% /mnt

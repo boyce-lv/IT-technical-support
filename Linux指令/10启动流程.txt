@@ -1,0 +1,17 @@
+RHEL7大概启动流程
+第一步：从BIOS到kernel
+计算机在接通电源之后首先由BIOS进行自检（即POST，Power-On Self Test）,然后依据BIOS设置的引导顺序从硬盘、USB或CDROM中读取“引导块”，如果BIOS将硬盘设为第一引导块，那么就把硬盘的MBR读入内存，然后跳到内存的bootloader开始执行，RHEL7中使用的bootloader是grub2。即BIOS==>GRUB2==>kernel
+
+第二步：从kernel到Login  Prompt（登录提示）
+kernel执行之后，将生成第一个进程systemd，然后产生其他系统服务和进程
+
+
+RHEL7详细启动流程
+第一步，BIOS初始化
+首先加载BIOS，通过BIOS程序加载CMOS的信息，并且根据CMOS的设定值取得主机的各项配置信息（如CPU与接口设备的频率、启动设备、硬盘的大小、系统时间等等）。取得这些信息之后，BIOS还会进行开机自检，取得第一个开机设备，读取第一个开机设备的BootLoader，
+第二步，GRUB2启动引导
+由于不同的操作系统，其文件系统不同，因此需要一个开机管理程序来处理内核文件的加载问题，这个开机管理程序被称为BootLoader，安装在MBR中。
+grub2的的boot.img在MBR中，boot.img会装载core.img,core.img会读取配置文件和其他需要的模块（/boot/grub2/i386-pc）。
+第三步，内核引导（vmlinuz、initramfs）
+加载vmlinuz和initramfs
+BootLoader加载内核文件后，将内核文件解压到内存中，利用内核的功能检测硬件设备，而非使用BIOS的结果。将根分区以只读方式挂载，接着载入进程systemd

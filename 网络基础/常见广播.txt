@@ -1,0 +1,6 @@
+    (1)ARP请求：建立IP地址和MAC地址的映射关系。
+　　(2)RIP：一种路由协议。
+　　(3)DHCP：用于自动设定IP地址的协议。
+　　(4)NetBEUI：Windows下使用的网络协议。
+　　(5)IPX：NovellNetware使用的网络协议。
+　　(6)Apple Talk：苹果公司的Macintosh计算机使用的网络协议。

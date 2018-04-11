@@ -1,0 +1,118 @@
+Ceph集群：
+安装分布式文件系统Ceph，配置存储集群。1个管理节点，3个存储节点。如下：	
+                                         |
+        +--------------------+           |           +-------------------+
+        |   [dlp.yang.com]  |10.0.0.30  |   10.0.0.x|   [   Client  ]   |
+        |    Ceph-Deploy     +-----------+-----------+                   |
+        |                    |           |           |                   |
+        +--------------------+           |           +-------------------+
+            +----------------------------+----------------------------+
+            |                            |                            |
+            |10.0.0.51                   |10.0.0.52                   |10.0.0.53 
++-----------+-----------+    +-----------+-----------+    +-----------+-----------+
+|   [node01.yang.com]  |    |   [node02.yang.com]  |    |   [node03.yang.com]  |
+|     Object Storage    +----+     Object Storage    +----+     Object Storage    |
+|     Monitor Daemon    |    |                       |    |                       |
+|                       |    |                       |    |                       |
++-----------------------+    +-----------------------+    +-----------------------+
+
+[1]在每个节点上，添加一个管理用户。如：yang	
+
+[2]给yang用户授权root权限，设置sodu来安装软件包。如果每节点firewalld开启，则在每节点上添加ssh service。
+
+[root@dlp ~]# echo -e 'Defaults:yang !requiretty\nyang ALL = (root) NOPASSWD:ALL' | tee /etc/sudoers.d/ceph 
+[root@dlp ~]# chmod 440 /etc/sudoers.d/ceph 
+[root@dlp ~]# yum -y install epel-release yum-plugin-priorities \
+https://download.ceph.com/rpm-luminous/el7/noarch/ceph-release-1-1.el7.noarch.rpm 
+[root@dlp ~]# sed -i -e "s/enabled=1/enabled=1\npriority=1/g" /etc/yum.repos.d/ceph.repo
+
+[root@dlp ~]# firewall-cmd --add-service=ssh --permanent 
+[root@dlp ~]# firewall-cmd --reload 
+
+[3]在监控节点上添加端口6789.	
+
+[root@dlp ~]# firewall-cmd --add-port=6789/tcp --permanent 
+[root@dlp ~]# firewall-cmd --reload 
+
+[4]在存储节点上打开6800-7100端口
+
+[root@dlp ~]# firewall-cmd --add-port=6800-7100/tcp --permanent 
+[root@dlp ~]# firewall-cmd --reload
+ 
+[5]切换到ceph的管理用户yang，管理节点到所有存储节点上设置ssh的无密通讯。
+
+[yang@dlp ~]$ ssh-keygen 
+Generating public/private rsa key pair.
+Enter file in which to save the key (/home/yang/.ssh/id_rsa):
+Created directory '/home/yang/.ssh'.
+Enter passphrase (empty for no passphrase):
+Enter same passphrase again:
+Your identification has been saved in /home/yang/.ssh/id_rsa.
+Your public key has been saved in /home/yang/.ssh/id_rsa.pub.
+The key fingerprint is:
+SHA256:bIzF6NAyEzpeV2CHOrr0JBgttu95RslBQ9bEDooXVbA yang@dlp.yang.com
+The key's randomart image is:
+
+[yang@dlp ~]$ vi ~/.ssh/config
+# create new ( define all nodes and users )
+Host dlp
+    Hostname dlp.yang.com
+    User yang
+Host node01
+    Hostname node01.yang.com
+    User yang
+Host node02
+    Hostname node02.yang.com
+    User yang
+Host node03
+    Hostname node03.yang.com
+    User yang
+
+[yang@dlp ~]$ chmod 600 ~/.ssh/config
+
+传送公钥文件：
+[yang@dlp ~]$ ssh-copy-id node01 
+yang@node01.yang.com's password: 
+
+Number of key(s) added: 1
+
+测试是否成功登录：ssh node01
+
+[yang@dlp ~]$ ssh-copy-id node02 
+[yang@dlp ~]$ ssh-copy-id node03 
+
+
+[6]从部署节点，开始在所有节点部署ceph
+
+[yang@dlp ~]$ sudo yum -y install ceph-deploy
+[yang@dlp ~]$ mkdir ceph 
+[yang@dlp ~]$ cd ceph 
+[yang@dlp ceph]$ ceph-deploy new node01
+
+每个节点上部署ceph：
+[yang@dlp ceph]$ ceph-deploy install dlp node01 node02 node03
+设置监控和key文件：
+[yang@dlp ceph]$ ceph-deploy mon create-initial 
+
+[7]为管理节点配置集群
+
+准备：Object Storage Daemon。
+[yang@dlp ceph]$ ceph-deploy osd prepare node01:/var/lib/ceph/osd node02:/var/lib/ceph/osd node03:/var/lib/ceph/osd
+
+激活：Object Storage Daemon
+[yang@dlp ceph]$ ceph-deploy osd activate node01:/var/lib/ceph/osd node02:/var/lib/ceph/osd node03:/var/lib/ceph/osd
+
+向其他节点传输配置文件：
+[yang@dlp ceph]$ ceph-deploy admin dlp node01 node02 node03 
+[yang@dlp ceph]$ sudo chmod 644 /etc/ceph/ceph.client.admin.keyring
+
+查看状态：
+[yang@dlp ceph]$ ceph health 
+HEALTH_OK
+
+[8]如果想清除所有配置，重新配置：	
+移除包：
+[yang@dlp ceph]$ ceph-deploy purge dlp node01 node02 node03
+移除设置：
+[yang@dlp ceph]$ ceph-deploy purgedata dlp node01 node02 node03 
+[yang@dlp ceph]$ ceph-deploy forgetkeys
